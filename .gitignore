@@ -4,9 +4,10 @@ build
 install
 log
 .ipynb_checkpoints
-__pycache__
-.py[cod]
-.obj
-.mtl
+__pycache__/
+*.py[cod]
+*$py.class
+*.obj
+*.mtl
 venv
 .env
