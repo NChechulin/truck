@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"addin",
+	"id":	"0518ff32-6157-413e-aecc-96f239d88872",
+	"author":	"AndBondStyle",
+	"description":	{
+		"":	"Utils for robotics development"
+	},
+	"version":	"1.0.0",
+	"runOnStartup":	false,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
