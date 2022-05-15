@@ -1,0 +1,5 @@
+outs:
+- md5: 9cbddc4ed53d1e188134d3fa17824ed1.dir
+  size: 107641875
+  nfiles: 13
+  path: cad_export
