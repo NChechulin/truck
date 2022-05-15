@@ -3,3 +3,10 @@ bazel-*
 build
 install
 log
+.ipynb_checkpoints
+__pycache__
+.py[cod]
+.obj
+.mtl
+venv
+.env
