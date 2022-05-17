@@ -159,7 +159,6 @@ class JointWrapper:
     axis: List[float] = None
     origin: List[float] = None
     limits: List[float] = None
-    index = 0
 
     # @property
     # def is_fixed(self):
@@ -755,13 +754,7 @@ class SmartExportCommand(BaseCommand):
                     joint.limits[1] = limits.maximumValue
                 joint.axis = motion.rotationAxisVector.asArray()
                 if isinstance(joint.obj, adsk.fusion.AsBuiltJoint):
-                    pt = joint.obj.assemblyContext.transform2.asArray()
-                    at = joint.obj.occurrenceOne.transform2.asArray()
-                    bt = joint.obj.occurrenceTwo.transform2.asArray()
-                    joint.origin = joint.obj.geometry.origin.asArray()
-                    if self._allclose(at, bt):
-                        joint.origin = self._trans(pt, joint.origin)
-                        joint.origin = self._trans(at, joint.origin)
+                    joint.origin = self._get_asbuilt_joint_origin(joint.obj)
 
                     results = {
                         'Front Left Wheel Steering': [106.683, -13.294, 202.5],
@@ -778,10 +771,20 @@ class SmartExportCommand(BaseCommand):
                         assert self._allclose(res, true_res, 0.1)
                 else:
                     log("  Mode: normal")
-                    joint.origin = self._get_joint_origin(joint.obj)
+                    joint.origin = self._get_true_joint_origin(joint.obj)
                 log(f"  Type: {joint.type}")
                 log(f"  Limits: {[round(x, 2) for x in joint.limits]}")
                 log(f"  Axis: {[round(x, 3) for x in joint.axis]}")
+                log(f"  Origin: {[round(x * 10, 3) for x in joint.origin]}")
+            elif isinstance(motion, adsk.fusion.BallJointMotion):
+                joint.type = "ball"
+                if isinstance(joint.obj, adsk.fusion.AsBuiltJoint):
+                    log("  Mode: asbuilt")
+                    joint.origin = self._get_asbuilt_joint_origin(joint.obj)
+                else:
+                    log("  Mode: normal")
+                    joint.origin = self._get_true_joint_origin(joint.obj)
+                log(f"  Type: {joint.type}")
                 log(f"  Origin: {[round(x * 10, 3) for x in joint.origin]}")
             else:
                 raise RuntimeError(f"Unsupported joint type: {joint.name}")
@@ -814,9 +817,10 @@ class SmartExportCommand(BaseCommand):
                 "id": joint.name,
                 "groups": list(affected_groups),
                 "type": joint.type,
-                "axis": self._flip(joint.axis),
                 "origin": self._flip(x / 100 for x in joint.origin),
             }
+            if joint.axis is not None:
+                item["axis"] = self._flip(joint.axis)
             if joint.limits is not None:
                 item["limits"] = joint.limits
             joints.append(item)
@@ -871,7 +875,21 @@ class SmartExportCommand(BaseCommand):
     def _allclose(self, v1, v2, tol=1e-6):
         return all(abs(a - b) < tol for a, b in zip(v1, v2))
 
-    def _get_joint_origin(self, joint):
+    def _get_asbuilt_joint_origin(self, joint):
+        context = joint.assemblyContext
+        if context is not None:
+            pt = joint.assemblyContext.transform2.asArray()
+        else:
+            pt = adsk.core.Matrix3D.create().asArray()
+        at = joint.occurrenceOne.transform2.asArray()
+        bt = joint.occurrenceTwo.transform2.asArray()
+        origin = joint.geometry.origin.asArray()
+        if self._allclose(at, bt):
+            origin = self._trans(pt, origin)
+            origin = self._trans(at, origin)
+        return origin
+
+    def _get_true_joint_origin(self, joint):
         xyz_from_one_to_joint = joint.geometryOrOriginOne.origin.asArray()
         xyz_from_two_to_joint = joint.geometryOrOriginTwo.origin.asArray()
         xyz_of_one = joint.occurrenceOne.transform.translation.asArray()
