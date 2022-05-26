@@ -106,25 +106,26 @@ class URDFBuilder:
         self._link_tags.append(link_tag)
         return link_tag
 
-    def register_joint(self, name: str, joint_id: str, parent_link: str, child_link: str):
+    def register_joint(self, name: str, joint_id: str, parent_link: str, child_link: str, flip_axis: bool = False):
         world_offset = self._get_world_offset(parent_link)
-        # print(parent_link, "->", child_link, "world offset:", world_offset)
         joint = self._cad_joints[joint_id]
         joint_tag = etree.Element("joint", name=name)
         joint_tag.append(etree.Element("parent", link=parent_link))
         joint_tag.append(etree.Element("child", link=child_link))
         if joint["type"] in ("revolute", "continuous"):
             origin = [x - dx for x, dx in zip(joint["origin"], world_offset)]
-            # print("original:", joint["origin"], "fixed:", origin)
-            joint_tag.append(etree.Element("axis", xyz=self._str(joint["axis"])))
+            axis = joint["axis"]
+            if flip_axis:
+                axis = [-axis[0], -axis[1], -axis[2]]
+            joint_tag.append(etree.Element("axis", xyz=self._str(axis)))
             joint_tag.append(etree.Element("origin", xyz=self._str(origin)))
             joint_tag.attrib["type"] = joint["type"]
             if joint["type"] == "revolute":
                 joint_tag.append(
                     etree.Element(
                         "limit",
-                        effort="30",  # TODO
-                        velocity="1.0",  # TODO
+                        effort="30",
+                        velocity="1.0",
                         lower=self._str(joint["limits"][0]),
                         upper=self._str(joint["limits"][1]),
                     )
@@ -181,7 +182,6 @@ class URDFBuilder:
     def _fix_offsets(self, link):
         link_name = link.attrib["name"]
         world_offset = self._get_world_offset(link_name)
-        # print(f"offset for link {link_name}: {world_offset}")
         origin_tag = link.find("visual")
         if origin_tag is not None:
             origin_tag = origin_tag.find("origin")
@@ -222,12 +222,12 @@ if __name__ == "__main__":
     urdf.register_link("rear_left_wheel", urdf.find_cad_group("Rear Left Wheel", "Generic Wheel"), "RL Wheel Collision")
     urdf.register_link("rear_right_wheel", urdf.find_cad_group("Rear Right Wheel", "Generic Wheel"), "RR Wheel Collision")
     
-    urdf.register_joint("front_left_wheel_steering", "Front Left Wheel Steering", "base", "front_left_cup")
-    urdf.register_joint("front_right_wheel_steering", "Front Right Wheel Steering", "base", "front_right_cup")
+    urdf.register_joint("left_steering_joint", "Front Left Wheel Steering", "base", "front_left_cup")
+    urdf.register_joint("right_steering_joint", "Front Right Wheel Steering", "base", "front_right_cup")
     urdf.register_joint("front_left_wheel_axle", "Front Left Wheel Spin", "front_left_cup", "front_left_wheel")
     urdf.register_joint("front_right_wheel_axle", "Front Right Wheel Spin", "front_right_cup", "front_right_wheel")
-    urdf.register_joint("rear_left_wheel_axle", "Rear Left Wheel Spin", "base", "rear_left_wheel")
-    urdf.register_joint("rear_right_wheel_axle", "Rear Right Wheel Spin", "base", "rear_right_wheel")
+    urdf.register_joint("left_rear_axle", "Rear Left Wheel Spin", "base", "rear_left_wheel")
+    urdf.register_joint("right_rear_axle", "Rear Right Wheel Spin", "base", "rear_right_wheel", flip_axis=True)
 
     front_left_wheel_collision = urdf.find_cad_collision("FL Wheel Collision")
     front_left_steering_joint = urdf.find_cad_joint("Front Left Wheel Steering")

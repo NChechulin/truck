@@ -110,14 +110,14 @@
     </collision>
   </link>
   <!-- JOINTS SECTION -->
-  <joint name="front_left_wheel_steering" type="revolute">
+  <joint name="left_steering_joint" type="revolute">
     <parent link="base"/>
     <child link="front_left_cup"/>
     <axis xyz="0.0 0.0 1.0"/>
     <origin xyz="0.2025 0.10668 -0.01329"/>
     <limit effort="30" velocity="1.0" lower="-0.69813" upper="0.5236"/>
   </joint>
-  <joint name="front_right_wheel_steering" type="revolute">
+  <joint name="right_steering_joint" type="revolute">
     <parent link="base"/>
     <child link="front_right_cup"/>
     <axis xyz="-0.0 -0.0 1.0"/>
@@ -136,16 +136,16 @@
     <axis xyz="-0.0 -1.0 -0.0"/>
     <origin xyz="-0.0 -0.0075 -0.0"/>
   </joint>
-  <joint name="rear_left_wheel_axle" type="continuous">
+  <joint name="left_rear_axle" type="continuous">
     <parent link="base"/>
     <child link="rear_left_wheel"/>
     <axis xyz="0.0 1.0 0.0"/>
     <origin xyz="-0.2025 0.11168 -0.01329"/>
   </joint>
-  <joint name="rear_right_wheel_axle" type="continuous">
+  <joint name="right_rear_axle" type="continuous">
     <parent link="base"/>
     <child link="rear_right_wheel"/>
-    <axis xyz="0.0 -1.0 0.0"/>
+    <axis xyz="-0.0 1.0 -0.0"/>
     <origin xyz="-0.2025 -0.11168 -0.01329"/>
   </joint>
 </robot>

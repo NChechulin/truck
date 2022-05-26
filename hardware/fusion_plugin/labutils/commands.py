@@ -5,6 +5,7 @@ from typing import Any, List, NamedTuple, Optional, Union, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
 import shutil
+import csv
 
 
 class BaseCommand:
@@ -57,7 +58,7 @@ class OTSMassCommand(BaseCommand):
     id = f"{PLUGIN_NAME}_OTSMassCommand"
     name = "Set off-the-shelf mass"
     info = "Updates physical materials to match off-the-shelf mass of entire component"
-    index = 1
+    index = 10
 
     def setup(self, args: adsk.core.CommandCreatedEventArgs):
         super().setup(args)
@@ -112,7 +113,7 @@ class OTSMassCommand(BaseCommand):
 class ShowTransformCommand(BaseCommand):
     id = f"{PLUGIN_NAME}_ShowTransformCommand"
     name = "Show occurrence transform"
-    index = 2
+    index = 11
 
     def setup(self, args: adsk.core.CommandCreatedEventArgs):
         super().setup(args)
@@ -148,6 +149,87 @@ class ShowTransformCommand(BaseCommand):
         return b
 
 
+class SampleJointCommand(BaseCommand):
+    id = f"{PLUGIN_NAME}_SampleJointCommand"
+    name = "Sample motion relation between two joints"
+    index = 1
+
+    def setup(self, args: adsk.core.CommandCreatedEventArgs):
+        super().setup(args)
+        self.inputs = args.command.commandInputs
+        self.joint_a = self.inputs.addSelectionInput("joint_a", "Input joint", "")
+        self.joint_a.addSelectionFilter("Joints")
+        self.joint_a.setSelectionLimits(1, 1)
+        self.joint_b = self.inputs.addSelectionInput("joint_b", "Output joint", "")
+        self.joint_b.addSelectionFilter("Joints")
+        self.joint_b.setSelectionLimits(1, 1)
+        default = adsk.core.ValueInput.createByString("100")
+        self.steps_count = self.inputs.addValueInput("steps_count", "Number of steps", "", default)
+        self.output_dir_btn = self.inputs.addBoolValueInput("output_dir_btn", "Output directory", False)
+        self.output_dir_btn.text = "SELECT"
+        self.output_path = None
+
+    def update(self, args: adsk.core.InputChangedEvent):
+        super().update(args)
+        if args.input.id == "output_dir_btn":
+            dialog = ui.createFolderDialog()
+            dialog.title = "Select output directory"
+            result = dialog.showDialog()
+            if result == adsk.core.DialogResults.DialogOK:
+                path = Path(dialog.folder)
+                path.mkdir(parents=True, exist_ok=True)
+                self.output_path = path
+                self.output_dir_btn.text = path.name
+
+    def execute(self, args: adsk.core.CommandEventArgs):
+        super().execute(args)
+        if self.output_path is None:
+            raise RuntimeError("Output path not set")
+
+        joint_a = self.joint_a.selection(0).entity
+        joint_b = self.joint_b.selection(0).entity
+        log(f"Input: {joint_a.name!r}, output: {joint_b.name!r}")
+        motion_a = joint_a.jointMotion
+        motion_b = joint_b.jointMotion
+        
+        if isinstance(motion_a, adsk.fusion.RevoluteJointMotion):
+            limits = motion_a.rotationLimits
+            if not limits.isMaximumValueEnabled or not limits.isMinimumValueEnabled:
+                raise RuntimeError("Input joint limits must be set")
+            min_value = limits.minimumValue
+            max_value = limits.maximumValue
+            set_input_value = lambda x: setattr(motion_a, "rotationValue", x)
+        else:
+            raise RuntimeError(f"Unsupported joint type: {type(motion_a).__name__}")
+
+        if isinstance(motion_b, adsk.fusion.RevoluteJointMotion):
+            get_output_value = lambda: motion_b.rotationValue
+        else:
+            raise RuntimeError(f"Unsupported joint type: {type(motion_b).__name__}")
+
+        steps_count = int(self.steps_count.value)
+        delta = (max_value - min_value) / steps_count
+        steps = [min_value + delta * i for i in range(steps_count + 1)]
+        samples = []
+        for input_value in steps:
+            set_input_value(input_value)
+            output_value = get_output_value()
+            if output_value > math.pi:
+                output_value -= 2 * math.pi
+            samples.append((input_value, output_value))
+
+        snapshots = app.activeProduct.snapshots
+        if snapshots.hasPendingSnapshot:
+            snapshots.revertPendingSnapshot()
+        
+        csv_path = self.output_path / "joint_table.csv"
+        with open(csv_path, "w") as file:
+            writer = csv.writer(file, delimiter=",", lineterminator="\n")
+            writer.writerow(("input_value", "output_value"))
+            writer.writerows(samples)
+            log(f"Output saved to: {csv_path}")
+
+
 @dataclass(repr=False)
 class JointWrapper:
     obj: Union[adsk.fusion.Joint, adsk.fusion.RigidGroup]
@@ -159,14 +241,6 @@ class JointWrapper:
     axis: List[float] = None
     origin: List[float] = None
     limits: List[float] = None
-
-    # @property
-    # def is_fixed(self):
-    #     if isinstance(self.obj, adsk.fusion.RigidGroup):
-    #         return True
-    #     if isinstance(self.obj.jointMotion, adsk.fusion.RigidJointMotion):
-    #         return True
-    #     return False
 
     @classmethod
     def construct(cls, obj, parent: "ComponentWrapper"):
